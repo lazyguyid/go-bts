@@ -1,9 +1,10 @@
 # 🗼 **go-bts** 
 <p align="center"><img src="https://raw.githubusercontent.com/lazyguyid/go-bts/main/logo.png" align="center" /></p>
 <p align="center">🗼 ~~ 🗼 ~~ 🗼</p>
-<p align="center">~~~</p>
-<p align="center">🗼</p>
-<p align="center">~~~</p>
+<p align="center">~&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~~~&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~ </p>
+<p align="center">🗼 ~~~~~~ 🗼 ~~~~~~🗼</p>
+<p align="center">~&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~~~&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;~ </p>
+
 <p align="center">🗼 ~~ 🗼 ~~ 🗼</p>
 <br>
 it's just a simple peer to peer library to help you making a simple connection between your application/service just like a BTS Tower base on UDP protocol.
