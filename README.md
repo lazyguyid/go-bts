@@ -7,7 +7,7 @@
 
 <p align="center">🗼 ~~ 🗼 ~~ 🗼</p>
 <br>
-it's just a simple peer to peer library to help you making a simple connection between your application/service just like a BTS Tower base on UDP protocol.
+it's just a simple peer to peer library to help you making a simple connection between your application/service just like a BTS Tower base on UDP network.
 
 
 <br/>
