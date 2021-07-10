@@ -46,11 +46,14 @@ tower.Up()
 
 type (
 	Tower struct {
-		Name       string
-		CableLines map[string]CableLine
-		Status     string
-		ID         string
-		PacketSize int
+		Name         string
+		Transmitters map[string]*Transmitter
+		Receiver     *Receiver
+		Status       string
+		ID           string
+		PacketSize   int
+		wg           sync.WaitGroup
+		Address      string
 	}
 
 	// Setup bts tower
@@ -62,12 +65,18 @@ type (
 		TowerGate  bool
 	}
 
-	CableLine struct {
+	Receiver struct {
+		Addr *net.UDPAddr
+		Conn *net.UDPConn
+	}
+
+	Transmitter struct {
 		TowerID      string
 		TowerAddr    string
 		PingInterval int64
 		Active       bool
-		Callback     func(t *Tower, v []byte) error
+		Receiver     func(t *Tower, v []byte) error
+		Conn         net.Conn
 	}
 )
 
@@ -77,26 +86,20 @@ func NewTower(setup *Setup) *Tower {
 	tower.Name = setup.Name
 	tower.Status = "UP"
 	tower.ID = setup.TowerID
+	tower.wg = sync.WaitGroup
 
 	return tower
 }
 
-func (tower *Tower) MakingPeerConnection(cablelines map[string]CableLine) {
-	var wg sync.WaitGroup
-	tower.CableLines = cablelines
-	for _, cableline := range cablelines {
-		wg.Add(1)
-		go tower.connect(&cableline, &wg)
+func (tower *Tower) BuildCableLines(cablelines []CableLine) {
+	tower.CableLines = make(map[string]*CableLine, 0)
+	for _, cableLine := range cablelines {
+		tower.CableLines[cableLine.ID] = &cableLine
 	}
-
-	wg.Wait()
 }
 
 func (tower *Tower) SetStatus(s string, towers []string) error {
-	return nil
-}
 
-func (tower *Tower) SendPacket(i interface{}, towers []string) error {
 	return nil
 }
 
@@ -104,32 +107,70 @@ func (tower *Tower) Disconnected(t string) bool {
 	return false
 }
 
-func (tower *Tower) Activate() error {
+func (tower *Tower) StandUp() error {
+
+	// connect with transmitter
+	f.connectTransmitter()
+
+	// create receiver
+	f.createReceiver()
+
+	tower.wg.Wait()
+
 	return nil
 }
 
-func (tower *Tower) connect(c *CableLine, wg *sync.WaitGroup) {
-	packet := make([]byte, 2048)
-	protocol, host, port := convAddr(c.TowerAddr)
-	conn, err := net.Dial(protocol, fmt.Sprintf("%s:%d", host, port))
-	if err != nil {
-		fmt.Printf("cannot making dial to tower address %s: %v", fmt.Sprintf("%s:%d", host, port), err)
-	}
+func (tower *Tower) connectTransmitter() {
 
-	defer wg.Done()
-	defer conn.Close()
+	for _, t := range tower.Transmitters {
+		tower.wg.Add(1)
+		go func() {
 
-	for tower.CableLines[c.TowerID].Active {
-		_, err = bufio.NewReader(conn).Read(packet)
-		if err == nil {
-			c.Callback(tower, packet)
-		} else {
-			fmt.Printf("error when read the packet : %v\n", err)
-		}
+			defer tower.wg.Done()
+
+			packet := make([]byte, 2048)
+			protocol, host, port := convAddr(t.TowerAddr)
+			tower.CableLine[c.TowerID].Conn, err = net.Dial(protocol, fmt.Sprintf("%s:%d", host, port))
+			if err != nil {
+				fmt.Printf("cannot making dial to tower address %s: %v", fmt.Sprintf("%s:%d", host, port), err)
+			}
+
+			defer tower.CableLine[c.TowerID].Conn.Close()
+
+			for tower.CableLines[c.TowerID].Active {
+				_, err = bufio.NewReader(conn).Read(packet)
+				if err == nil {
+					c.Receiver(tower, packet)
+				} else {
+					fmt.Printf("error when read the packet : %v\n", err)
+				}
+			}
+		}()
 	}
 }
 
-func (tower *Tower) SendSignal()
+func (tower *Tower) createTransmitter() {
+	packet := make([]byte, 2048)
+	protocol, host, port := convAddr(c.TowerAddr)
+	tower.Addr = net.UDPAddr{
+		Port: port,
+		IP: host,
+	}
+
+	tower.Receiver.Conn, err := net.ListenUDP(protocol, tower.Addr)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	for tower.Receiver.Active {
+
+	}
+}
+
+func (tower *Tower) Transmit(t string, p []byte) error {
+	_, err := fmt.Fprintf(tower.cableLines[t].Conn, p)
+	return err
+}
 
 func convAddr(addr string) (protocol string, host string, port int) {
 	s := strings.Split(addr, ":")
