@@ -54,6 +54,7 @@ type (
 		PacketSize   int
 		wg           sync.WaitGroup
 		Address      string
+		Services 	 interface{}
 	}
 
 	// Setup bts tower
@@ -68,6 +69,7 @@ type (
 	Receiver struct {
 		Addr *net.UDPAddr
 		Conn *net.UDPConn
+		TransAddr map[string]net.UDPAddr
 	}
 
 	Transmitter struct {
@@ -91,10 +93,10 @@ func NewTower(setup *Setup) *Tower {
 	return tower
 }
 
-func (tower *Tower) BuildCableLines(cablelines []CableLine) {
-	tower.CableLines = make(map[string]*CableLine, 0)
-	for _, cableLine := range cablelines {
-		tower.CableLines[cableLine.ID] = &cableLine
+func (tower *Tower) Transmitters(ts []Transmitter) {
+	tower.Transmitters = make(map[string]*Transmitter, 0)
+	for _, t := range ts {
+		tower.Transmitters[t.ID] = &t
 	}
 }
 
@@ -107,10 +109,10 @@ func (tower *Tower) Disconnected(t string) bool {
 	return false
 }
 
-func (tower *Tower) StandUp() error {
+func (tower *Tower) Ready() error {
 
 	// connect with transmitter
-	f.connectTransmitter()
+	f.hookTransmitter()
 
 	// create receiver
 	f.createReceiver()
@@ -163,7 +165,17 @@ func (tower *Tower) createTransmitter() {
 	}
 
 	for tower.Receiver.Active {
-
+		go func(t *Tower) {
+			_, remoteAddr, err := tower.Receiver.Conn.ReadFromUDP(packet)
+			if err != nil {
+				fmt.Printf("Got an error when try to read the message: %v", err)
+			} else {
+				err = tower.Receiver.Reader(t, p)
+				if err != nil {
+					fmt.Printf("Got an error when try to process the message: %v", err)
+				}
+			}
+		}(tower)
 	}
 }
 
