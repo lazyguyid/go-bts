@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 /*
@@ -44,6 +46,17 @@ tower.Up()
 
 */
 
+var logo string = `
+==================================================
+  ██████╗  ██████╗       ██████╗ ████████╗███████╗
+ ██╔════╝ ██╔═══██╗      ██╔══██╗╚══██╔══╝██╔════╝
+ ██║  ███╗██║   ██║█████╗██████╔╝   ██║   ███████╗
+ ██║   ██║██║   ██║╚════╝██╔══██╗   ██║   ╚════██║
+ ╚██████╔╝╚██████╔╝      ██████╔╝   ██║   ███████║
+  ╚═════╝  ╚═════╝       ╚═════╝    ╚═╝   ╚══════╝
+================================= lazyguyid v0.0.1
+`
+
 type (
 	Tower struct {
 		Name         string
@@ -52,9 +65,9 @@ type (
 		Status       string
 		ID           string
 		PacketSize   int
-		wg           sync.WaitGroup
+		wg           *sync.WaitGroup
 		Address      string
-		Services 	 interface{}
+		Services     interface{}
 	}
 
 	// Setup bts tower
@@ -67,9 +80,11 @@ type (
 	}
 
 	Receiver struct {
-		Addr *net.UDPAddr
-		Conn *net.UDPConn
+		Addr      *net.UDPAddr
+		Conn      *net.UDPConn
 		TransAddr map[string]net.UDPAddr
+		Reader    func(t *Tower, v []byte) error
+		Active    bool
 	}
 
 	Transmitter struct {
@@ -88,15 +103,19 @@ func NewTower(setup *Setup) *Tower {
 	tower.Name = setup.Name
 	tower.Status = "UP"
 	tower.ID = setup.TowerID
-	tower.wg = sync.WaitGroup
+	tower.wg = new(sync.WaitGroup)
+	tower.Address = setup.TowerAddr
+	tower.Receiver = new(Receiver)
+
+	// setup logger
 
 	return tower
 }
 
-func (tower *Tower) Transmitters(ts []Transmitter) {
+func (tower *Tower) Transmitter(ts []Transmitter) {
 	tower.Transmitters = make(map[string]*Transmitter, 0)
 	for _, t := range ts {
-		tower.Transmitters[t.ID] = &t
+		tower.Transmitters[t.TowerID] = &t
 	}
 }
 
@@ -111,11 +130,13 @@ func (tower *Tower) Disconnected(t string) bool {
 
 func (tower *Tower) Ready() error {
 
+	fmt.Println(logo)
+
 	// connect with transmitter
-	f.hookTransmitter()
+	tower.connectTransmitter()
 
 	// create receiver
-	f.createReceiver()
+	tower.createTransmitter()
 
 	tower.wg.Wait()
 
@@ -132,17 +153,18 @@ func (tower *Tower) connectTransmitter() {
 
 			packet := make([]byte, 2048)
 			protocol, host, port := convAddr(t.TowerAddr)
-			tower.CableLine[c.TowerID].Conn, err = net.Dial(protocol, fmt.Sprintf("%s:%d", host, port))
+			conn, err := net.Dial(protocol, fmt.Sprintf("%s:%d", host, port))
+			tower.Transmitters[t.TowerID].Conn = conn
 			if err != nil {
 				fmt.Printf("cannot making dial to tower address %s: %v", fmt.Sprintf("%s:%d", host, port), err)
 			}
 
-			defer tower.CableLine[c.TowerID].Conn.Close()
+			defer tower.Transmitters[t.TowerID].Conn.Close()
 
-			for tower.CableLines[c.TowerID].Active {
+			for tower.Transmitters[t.TowerID].Active {
 				_, err = bufio.NewReader(conn).Read(packet)
 				if err == nil {
-					c.Receiver(tower, packet)
+					t.Receiver(tower, packet)
 				} else {
 					fmt.Printf("error when read the packet : %v\n", err)
 				}
@@ -152,36 +174,54 @@ func (tower *Tower) connectTransmitter() {
 }
 
 func (tower *Tower) createTransmitter() {
-	packet := make([]byte, 2048)
-	protocol, host, port := convAddr(c.TowerAddr)
-	tower.Addr = net.UDPAddr{
+	protocol, host, port := convAddr(tower.Address)
+	addr := net.UDPAddr{
 		Port: port,
-		IP: host,
+		IP:   net.ParseIP(host),
 	}
 
-	tower.Receiver.Conn, err := net.ListenUDP(protocol, tower.Addr)
+	conn, err := net.ListenUDP(protocol, &addr)
+	if err != nil {
+		panic(err)
+	}
+
+	tower.Receiver.Conn = conn
 	if err != nil {
 		panic(err.Error())
 	}
 
-	for tower.Receiver.Active {
-		go func(t *Tower) {
-			_, remoteAddr, err := tower.Receiver.Conn.ReadFromUDP(packet)
+	log.Info("Transmitter & Receiver is Running...")
+	tower.Receiver.Active = true
+
+	tower.wg.Add(1)
+	go func() {
+
+		defer tower.wg.Done()
+
+		for tower.Receiver.Active {
+			packet := make([]byte, 2048)
+			_, _, err := tower.Receiver.Conn.ReadFromUDP(packet)
 			if err != nil {
 				fmt.Printf("Got an error when try to read the message: %v", err)
 			} else {
-				err = tower.Receiver.Reader(t, p)
-				if err != nil {
-					fmt.Printf("Got an error when try to process the message: %v", err)
+				if tower.Receiver.Reader != nil {
+					err = tower.Receiver.Reader(tower, packet)
+					if err != nil {
+						fmt.Printf("Got an error when try to process the message: %v", err)
+					}
+				} else {
+					log.Info("no reader to process the packet")
 				}
+				log.Info(string(packet))
 			}
-		}(tower)
-	}
+		}
+	}()
+
 }
 
-func (tower *Tower) Transmit(t string, p []byte) error {
-	_, err := fmt.Fprintf(tower.cableLines[t].Conn, p)
-	return err
+func (tower *Tower) Transmit(t string, p interface{}) error {
+	// _, err := fmt.Fprintf(tower.Transmitters[t].Conn, p)
+	return nil
 }
 
 func convAddr(addr string) (protocol string, host string, port int) {
