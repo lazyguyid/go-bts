@@ -54,8 +54,9 @@ var logo string = `
  ██║   ██║██║   ██║╚════╝██╔══██╗   ██║   ╚════██║
  ╚██████╔╝╚██████╔╝      ██████╔╝   ██║   ███████║
   ╚═════╝  ╚═════╝       ╚═════╝    ╚═╝   ╚══════╝
-================================= lazyguyid v0.0.1
+================================= lazyguyid %v
 `
+var version string = "v.0.0.1"
 
 type (
 	Tower struct {
@@ -130,7 +131,7 @@ func (tower *Tower) Disconnected(t string) bool {
 
 func (tower *Tower) Ready() error {
 
-	fmt.Println(logo)
+	fmt.Printf(logo, version)
 
 	// connect with transmitter
 	tower.connectTransmitter()
