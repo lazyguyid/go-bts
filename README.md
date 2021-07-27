@@ -22,48 +22,67 @@ import (
     bts "github.com/lazyguyid/go-bts"
 )
 
+var receiver, transmitter bool
+
+func init() {
+	flag.BoolVar(&receiver, "receiver", false, "activate receiver")
+	flag.BoolVar(&transmitter, "transmitter", false, "activate transmitter")
+}
+
+func receivers(t *bts.Tower) {
+	fmt.Println("receiver start")
+	t = bts.NewTower(&bts.Setup{
+		Name:       "Tower A",
+		ID:         "bts-example",
+		Addr:       "udp://127.0.0.1:4321",
+		PacketSize: 2048,
+		AsGate:     false,
+	})
+}
+
+func transmitters(t *bts.Tower) {
+	t.Connect([]bts.Transmitter{
+		bts.Transmitter{
+			Active:       true,
+			ID:           "uuid",
+			Addr:         "udp://127.0.0.1:4321",
+			PingInterval: 10 * time.Second,
+			Receiver: func(t *bts.Tower, v []byte, transmitter *bts.Transmitter) error {
+				fmt.Println(fmt.Sprintf("\r[%s]:: %s", transmitter.Conn.RemoteAddr().String(), string(v)))
+				return nil
+			},
+		},
+	})
+}
+
 func main() {
-    // create a new tower
-    tower := bts.NewTower(&bts.Setup{
-        Name: "My BTS",
-        TowerAddr: "udp://localhost:4000",
-        ID: "your-bts-ID",
-        IsGateTower: true,
-    })
-
-    // making peer connection between tower
-    tower.MakingPeerConnection(map[string]bts.CableLine{}{
-        "near-tower-1": bts.CableLine{
-            ID: "your-near-tower-id",
-            TowerAddr: "udp://localhost:4000",
-            PingInterval: 10 * time.Second,
-            Callback: func (t *bts.Tower, packet []byte) error {
-                // TODO: your logic when you get the packet
-                return nil
-            }
-        },
-    })
-
-    // activate the tower
-    tower.Up()
-}
-```
-
-
-
-## **What you can do ?**
-```go
-// ping near tower
-tower.Ping("near-tower-id")
-
-// check if near tower disconnected
-if tower.Disconnected("near-tower-id") {
-    // TODO: your logic if tower disconnected
+	flag.Parse()
+	tower := bts.NewTower(nil)
+	if receiver {
+		tower = bts.NewTower(&bts.Setup{
+			Name:       "Tower A",
+			ID:         "bts-example",
+			Addr:       "udp://127.0.0.1:4321",
+			PacketSize: 2048,
+			AsGate:     false,
+			Callback: func(t *bts.Tower, p []byte, transAddr net.Addr) error {
+				fmt.Println(fmt.Sprintf("\r[%v]:: %s", transAddr, string(p)))
+				return nil
+			},
+		})
+	}
+	if transmitter {
+		transmitters(tower)
+	}
+	tower.ActivatePrompt(true)
+	tower.Ready()
 }
 
-// send a packet to near tower
-tower.SendPacket("near-tower-id", []byte("hello"))
 ```
+## **Screenshoot**
+
+<p align="center"><img src="https://raw.githubusercontent.com/lazyguyid/go-bts/main/demo.gif" align="center" /></p>
+
 
 
 ### <b>NOTE**</b>
